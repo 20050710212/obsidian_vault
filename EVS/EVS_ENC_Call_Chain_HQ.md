@@ -221,3 +221,33 @@ R -->|否| T["updat_prev_frm_fx()"]
 
 S --> T
 ```
+``` mermaid
+flowchart TD
+
+A["HQ_CORE_TYPE"]
+
+A -->|LOW_RATE_HQ_CORE| B["HQ_LR Encoder"]
+
+A -->|NORMAL_HQ_CORE| C["HQ_HR Encoder"]
+
+%% HQ_LR
+B --> B1["Spectrum analysis"]
+B1 --> B2["Bit allocation"]
+B2 --> B3["TCQ spectrum quantization"]
+B3 --> B4["Noise injection / BWE"]
+B4 --> Z["Bitstream"]
+
+%% HQ_HR
+C --> C1["Spectrum classification"]
+C1 --> C2["Envelope coding"]
+C2 --> C3["Bit allocation"]
+C3 --> C4{"Quantization"}
+
+C4 -->|PVQ| C5["PVQ encoding"]
+C4 -->|HVQ| C6["HVQ encoding"]
+
+C5 --> C7["Noise adjustment"]
+C6 --> C7
+
+C7 --> Z
+```
