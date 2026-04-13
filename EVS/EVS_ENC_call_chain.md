@@ -269,53 +269,6 @@ sharpFlag是个什么标志，为啥在preproces做了多次判断？
 
 ``` mermaid
 flowchart TD
-A[EVS encoder]
-
-A --> B[MODE1]
-A --> C[MODE2]
-
-B --> D[ACELP]
-B --> E[HQ]
-
-D --> F[inactive]
-D --> G[unvoiced]
-D --> H[voiced]
-D --> I[generic]
-D --> J[transition]
-D --> K[audio]
-
-C --> L[ACELP]
-C --> M[TCX]
-```
-
-``` mermaid
-flowchart LR
-A[evs_enc_fx] --> B[pre_proc_fx]
-B --> C[decision_matrix_enc_fx]
-C --> D[acelp_core_enc_fx]
-D --> E[coder_acelp]
-
-E --> F[find_targets_fx]
-F --> G[pitch search<br>Mode2_pit_encode]
-G --> H[innovation search<br>inov_encode_fx]
-H --> I[gain quantization<br>encode_acelp_gains]
-```
-
-``` mermaid
-flowchart TD
-A[evs_enc_fx]
-A --> B[pre_proc_fx]
-B --> C[decision_matrix_enc_fx]
-C --> D[acelp_core_enc_fx]
-D --> E[coder_acelp]
-E --> F[find_targets_fx]
-F --> G[pitch search]
-G --> H[innovation search]
-H --> I[gain quantization]
-```
-
-``` mermaid
-flowchart TD
 A[evs_enc_fx] --> B[pre_proc_fx]
 B --> C[decision_matrix_enc_fx]
 C --> D[acelp_core_enc_fx]
@@ -324,12 +277,13 @@ D --> E[lsf_enc_fx]
 E --> F[calc_residu_fx]
 F --> G[Es_pred_enc_fx]
 
-G --> H{coder_type_fx / mode}
+G --> H{coder_type}
 
-H --> I[encod_nelp_fx]
-H --> J[encod_unvoiced_fx]
-H --> K[encod_tran_fx]
-H --> L[encod_ppp_fx]
-H --> M[encod_audio_fx]
-H --> N[encod_gen_voic_fx]
+H --> I[encod_nelp/ppp/unvoiced<br>tran/audio/gen_fx]
+
+I --> P[find_targets_fx]
+
+P --> Q[pitch search]
+Q --> R[innovation search]
+R --> S[gain quantization]
 ```
