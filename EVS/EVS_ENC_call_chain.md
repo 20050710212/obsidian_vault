@@ -287,3 +287,51 @@ P --> Q[pitch search]
 Q --> R[innovation search]
 R --> S[gain quantization]
 ```
+
+
+``` mermaid
+flowchart TD
+A[evs_enc_fx] --> B[pre_proc_fx]
+B --> C[decision_matrix_enc_fx]
+C --> D[acelp_core_enc_fx]
+
+D --> E[lsf_enc_fx]
+E --> F[calc_residu_fx]
+F --> G[Es_pred_enc_fx]
+
+G --> H{coder_type / mode}
+
+H --> I[enc_nelp_fx]
+H --> J[enc_uv_fx]
+H --> K[enc_tran_fx]
+H --> L[enc_ppp_fx]
+H --> M[encod_audio_fx]
+H --> N[enc_gen_voic_fx]
+
+I --> I1[find_targets_fx]
+I1 --> I2[nelp_encoder_fx]
+
+J --> J1[find_targets_fx]
+J1 --> J2[gaus_encode_fx]
+
+K --> K1[find_targets_fx]
+K1 --> K2[transition_enc_fx]
+K2 --> K3[inov_encode_fx]
+K3 --> K4[gain_enc_tc_fx / gain_enc_SQ_fx / gain_enc_mless_fx]
+
+L --> L1[find_targets_fx]
+L1 --> L2[ppp_voiced_encoder_fx]
+
+M --> M1[enc_pit_exc_fx]
+M1 --> M2[find_targets_fx]
+M2 --> M3[pit_encode_fx]
+M3 --> M4[lp_filt_exc_enc_fx]
+M4 --> M5[inov_encode_fx]
+M5 --> M6[gain_enc_mless_fx]
+
+N --> N1[find_targets_fx]
+N1 --> N2[pit_encode_fx]
+N2 --> N3[lp_filt_exc_enc_fx]
+N3 --> N4[inov_encode_fx]
+N4 --> N5[gain_enc_lbr_fx / gain_enc_SQ_fx / gain_enc_mless_fx]
+```
