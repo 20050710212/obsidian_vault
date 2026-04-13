@@ -266,3 +266,24 @@ Z -->|否| AB["TBE 路<br>ext = SWB_TBE<br>ext_brate = 1.6k<br>若 total_brate>=
 
 
 sharpFlag是个什么标志，为啥在preproces做了多次判断？
+
+``` mermaid
+flowchart TD
+A[EVS encoder]
+
+A --> B[MODE1]
+A --> C[MODE2]
+
+B --> D[ACELP]
+B --> E[HQ]
+
+D --> F[inactive]
+D --> G[unvoiced]
+D --> H[voiced]
+D --> I[generic]
+D --> J[transition]
+D --> K[audio]
+
+C --> L[ACELP]
+C --> M[TCX]
+```
