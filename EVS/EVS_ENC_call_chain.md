@@ -313,3 +313,23 @@ F --> G[pitch search]
 G --> H[innovation search]
 H --> I[gain quantization]
 ```
+
+``` mermaid
+flowchart TD
+A[evs_enc_fx] --> B[pre_proc_fx]
+B --> C[decision_matrix_enc_fx]
+C --> D[acelp_core_enc_fx]
+
+D --> E[lsf_enc_fx]
+E --> F[calc_residu_fx]
+F --> G[Es_pred_enc_fx]
+
+G --> H{coder_type_fx / mode}
+
+H --> I[encod_nelp_fx]
+H --> J[encod_unvoiced_fx]
+H --> K[encod_tran_fx]
+H --> L[encod_ppp_fx]
+H --> M[encod_audio_fx]
+H --> N[encod_gen_voic_fx]
+```
