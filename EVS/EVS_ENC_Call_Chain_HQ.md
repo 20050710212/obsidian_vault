@@ -170,3 +170,54 @@ pvq_core_enc_fx()
 作用：
 提高主观音质
 避免高频空洞
+
+``` mermaid
+flowchart TD
+
+A["hq_lr_enc_fx()"]
+
+A --> B["peak_avrg_ratio_fx() (条件满足时)"]
+
+B --> C["hq2_core_configure_fx()"]
+
+C --> D["p2a_threshold_quant_fx()"]
+
+D --> E{"是否short-domain"}
+
+E -->|是| F["spt_shorten_domain_pre_fx()"]
+
+F --> G["spt_shorten_domain_set_fx()"]
+
+G --> H["hq2_bit_alloc_fx()"]
+
+E -->|否| H
+
+H --> I{"是否harmonic"}
+
+I -->|是| J["hq2_bit_alloc_har_fx()"]
+
+I -->|否| K["hq2_bit_alloc_fx()"]
+
+J --> L["tcq_core_LR_enc_fx()"]
+K --> L
+
+L --> M["mdct_spectrum_denorm_fx()"]
+
+M --> N["mdct_spectrum_fine_gain_enc_fx()"]
+
+N --> O{"是否short-domain"}
+
+O -->|是| P["spt_shorten_domain_band_restore_fx()"]
+
+O -->|否| Q["hq2_noise_inject_fx()"]
+
+P --> Q
+
+Q --> R{"是否SWB"}
+
+R -->|是| S["swb_bwe_enc_lr_fx()"]
+
+R -->|否| T["updat_prev_frm_fx()"]
+
+S --> T
+```
