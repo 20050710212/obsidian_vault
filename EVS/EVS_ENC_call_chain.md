@@ -43,6 +43,25 @@ D --> I["Generic"]
 D --> J["Transition"]
 D --> K["Audio"]
 ```
+
+``` mermaid
+flowchart TD
+A[MODE2]
+
+A --> B{tcxonly}
+
+B -->|0| C[core_encode_openloop]
+
+C --> D{core_fx}
+
+D -->|ACELP| E[ACELP coder]
+
+D -->|TCX| F[coder_tcx]
+
+B -->|1| G[core_encode_twodiv]
+
+G --> F
+```
 # 2. Model=1, ACELP call chain
 ACELP 是典型 analysis-by-synthesis 编码结构，通过 pitch codebook + innovation codebook 组合重建语音。
 ``` mermaid
