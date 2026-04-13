@@ -287,3 +287,29 @@ D --> K[audio]
 C --> L[ACELP]
 C --> M[TCX]
 ```
+
+``` mermaid
+flowchart LR
+A[evs_enc_fx] --> B[pre_proc_fx]
+B --> C[decision_matrix_enc_fx]
+C --> D[acelp_core_enc_fx]
+D --> E[coder_acelp]
+
+E --> F[find_targets_fx]
+F --> G[pitch search<br>Mode2_pit_encode]
+G --> H[innovation search<br>inov_encode_fx]
+H --> I[gain quantization<br>encode_acelp_gains]
+```
+
+``` mermaid
+flowchart TD
+A[evs_enc_fx]
+A --> B[pre_proc_fx]
+B --> C[decision_matrix_enc_fx]
+C --> D[acelp_core_enc_fx]
+D --> E[coder_acelp]
+E --> F[find_targets_fx]
+F --> G[pitch search]
+G --> H[innovation search]
+H --> I[gain quantization]
+```
