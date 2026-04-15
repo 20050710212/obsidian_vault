@@ -213,3 +213,34 @@ I --> J[Gain quantization<br/>pitch + code gains]
 
 J --> K[Excitation synthesis and state update]
 ```
+
+switch
+``` mermaid
+flowchart TD
+
+A[core_acelp_tcx20_switching]
+
+A --> B[Normalize pitch information<br/>convert to 16 kHz domain]
+
+B --> C[TCX analysis preparation<br/>compute TCX-LTP parameters]
+
+C --> D{External MDCT switch forced?}
+
+D -->|Yes| E[Set core = TCX_20_CORE]
+
+D -->|No| F[Estimate TCX SNR<br/>MDCT + spectrum shaping]
+
+F --> G[Estimate ACELP SNR<br/>pitch prediction based]
+
+G --> H[Apply hysteresis corrections<br/>stationarity / voicing / noisy speech]
+
+H --> I{snr_acelp + dsnr > snr_tcx ?}
+
+I -->|Yes| J[Select ACELP_CORE<br/>increment acelpFramesCount]
+
+I -->|No| K[Select TCX_20_CORE<br/>reset acelpFramesCount]
+
+J --> L[Update previous frame state<br/>prevTempFlatness]
+
+K --> L
+```
