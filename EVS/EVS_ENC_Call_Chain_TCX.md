@@ -244,3 +244,68 @@ J --> L[Update previous frame state<br/>prevTempFlatness]
 
 K --> L
 ```
+
+quantizespectrum
+
+新的流程图
+``` mermaid
+flowchart TD
+
+A[QuantizeSpectrum]
+
+A --> B[Initialize frame configuration]
+
+B --> C[Handle ACELP to TCX transition]
+
+C --> D[Save original spectrum<br/>limit coding bandwidth]
+
+D --> E{Arithmetic coding mode}
+
+E -->|Old coder| F[Scalar quantization<br/>rate loop control]
+
+E -->|New coder| G[tcx_arith_encode_envelope]
+
+F --> H[TCX gain computation]
+
+G --> H
+
+H --> I[Residual quantization]
+
+I --> J[Noise filling estimation]
+
+J --> K[Internal TCX reconstruction support]
+```
+
+
+旧的流程图
+
+``` mermaid
+
+flowchart TD
+
+A[QuantizeSpectrum]
+
+A --> B[Initialize frame and parameter layout]
+
+B --> C[Adjust configuration for ACELP to TCX transition]
+
+C --> D[Save original spectrum and apply bandwidth limitation]
+
+D --> E{Arithmetic coding mode}
+
+E -->|Old coder| F[Scalar quantization and bit estimation]
+
+E -->|New coder| G[Arithmetic envelope encoding]
+
+F --> H[Rate control and context harmonic mapping decision]
+G --> H
+
+H --> I[Compute and quantize TCX gain]
+
+I --> J[Residual quantization]
+
+J --> K[Estimate noise filling factor]
+
+K --> L[Internal TCX reconstruction support<br/>formant enhancement / noise filling]
+```
+
