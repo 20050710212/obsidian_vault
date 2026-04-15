@@ -1,28 +1,49 @@
 # 1. EVS 总体结构
 EVS Encoder 每帧先做信号分析，然后在 MODE1(ACELP/HQ) 或 MODE2(TCX) 之间选择编码路径。
 
-```mermaid
+
+
+``` mermaid
 flowchart TD
 
-A[evs_enc_fx<br>EVS编码入口]
+A[evs_enc_fx]
+B[pre_proc_fx]
+C{codec_mode}
 
-A --> B[pre_proc_fx<br>语音分析+模式决策]
+D{MODE1 core}
+E[acelp_core_enc_fx]
+F[hq_core_enc_fx]
 
-B --> C{codec_mode}
+G[enc_acelp_tcx_main]
+H[core_encode_openloop]
+I[core_encode_twodiv]
 
-C -->|MODE1| D[ACELP_CORE<br>语音预测编码]
+J[coder_acelp]
+K[coder_tcx]
 
-C -->|MODE1| E[HQ_CORE<br>MDCT音频编码]
+L[hq_lr_enc_fx]
+M[hq_hr_enc_fx]
 
-C -->|MODE2| F[TCX_20_CORE<br>频域编码]
+A --> B
+B --> C
 
-D --> G[bitstream writing]
+C -->|MODE1| D
+C -->|MODE2| G
 
-E --> G
+D -->|ACELP_CORE| E
+D -->|HQ_CORE| F
 
-F --> G
+F -->|LOW_RATE| L
+F -->|HIGH_RATE| M
+
+G --> H
+G --> I
+
+H --> J
+H --> K
+
+I --> K
 ```
-
 ``` mermaid
 flowchart TD
 
