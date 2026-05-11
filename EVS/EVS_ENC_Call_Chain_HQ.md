@@ -251,3 +251,20 @@ C6 --> C7
 
 C7 --> Z
 ```
+
+
+hq_lr_enc
+``` mermaid
+flowchart TD
+    A["hq_lr_enc_fx"] --> B["hq2_core_configure_fx"]
+    B --> C["band_energy_quant_fx"]
+    C --> D["p2a_threshold_quant_fx"]
+    D --> E["hq2_bit_alloc_fx / hq2_bit_alloc_har_fx"]
+    E --> F["tcq_core_LR_enc_fx"]
+    F --> G["mdct_spectrum_denorm_fx"]
+    G --> H["mdct_spectrum_fine_gain_enc_fx"]
+    H --> I["hq2_noise_inject_fx"]
+    I --> J["swb_bwe_enc_lr_fx"]
+    J --> K["updat_prev_frm_fx"]
+```
+
