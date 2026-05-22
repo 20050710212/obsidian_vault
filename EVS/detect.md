@@ -1,7 +1,13 @@
+import os
+import csv
+import wave
 import numpy as np
 from dataclasses import dataclass
 
 
+# =========================================================
+# 数据结构
+# =========================================================
 @dataclass
 class SegmentResult:
     index: int
@@ -21,23 +27,110 @@ class SegmentResult:
     abnormal_reasons: list
 
 
+# =========================================================
+# 基础函数
+# =========================================================
 def rms(x, eps=1e-12):
     return np.sqrt(np.mean(x * x) + eps)
 
 
+def to_mono_float(x):
+    """
+    输入:
+        x: numpy array, shape=(N,) 或 (N,C)
+    输出:
+        float64 单声道, shape=(N,)
+    """
+    x = np.asarray(x)
+
+    if x.ndim == 2:
+        x = np.mean(x, axis=1)
+
+    # 整数转 float
+    if np.issubdtype(x.dtype, np.integer):
+        info = np.iinfo(x.dtype)
+        max_abs = max(abs(info.min), abs(info.max))
+        x = x.astype(np.float64) / max_abs
+    else:
+        x = x.astype(np.float64)
+
+    return x
+
+
+def read_wav_file(path):
+    """
+    读取 wav 文件
+    返回:
+        audio: float64 单声道
+        fs: 采样率
+    """
+    with wave.open(path, 'rb') as wf:
+        n_channels = wf.getnchannels()
+        sampwidth = wf.getsampwidth()
+        fs = wf.getframerate()
+        n_frames = wf.getnframes()
+        raw = wf.readframes(n_frames)
+
+    if sampwidth == 1:
+        dtype = np.uint8
+        x = np.frombuffer(raw, dtype=dtype).astype(np.float64)
+        x = (x - 128.0) / 128.0
+    elif sampwidth == 2:
+        dtype = np.int16
+        x = np.frombuffer(raw, dtype=dtype)
+    elif sampwidth == 4:
+        dtype = np.int32
+        x = np.frombuffer(raw, dtype=dtype)
+    else:
+        raise ValueError(f"不支持的 wav 位宽: {sampwidth * 8} bit")
+
+    if n_channels > 1:
+        x = x.reshape(-1, n_channels)
+
+    x = to_mono_float(x)
+    return x, fs
+
+
+def read_pcm_file(path, fs=48000, channels=1, dtype='int16'):
+    """
+    读取裸 pcm 文件
+    参数:
+        path: 文件路径
+        fs: 采样率
+        channels: 通道数
+        dtype: 'int16' / 'int32' / 'float32'
+    返回:
+        audio: float64 单声道
+        fs: 采样率
+    """
+    dtype_map = {
+        'int16': np.int16,
+        'int32': np.int32,
+        'float32': np.float32,
+    }
+
+    if dtype not in dtype_map:
+        raise ValueError(f"不支持的 pcm dtype: {dtype}")
+
+    x = np.fromfile(path, dtype=dtype_map[dtype])
+
+    if channels > 1:
+        x = x.reshape(-1, channels)
+
+    x = to_mono_float(x)
+    return x, fs
+
+
+# =========================================================
+# 核心检测函数
+# =========================================================
 def tone_corr_score(x, fs, freq_hz):
-    """
-    对一段信号 x 计算目标频率的归一化相关得分。
-    使用 sin/cos 双基底，不怕相位未知。
-    """
     n = len(x)
     t = np.arange(n) / fs
     s = np.sin(2 * np.pi * freq_hz * t)
     c = np.cos(2 * np.pi * freq_hz * t)
 
-    # 去直流
     x0 = x - np.mean(x)
-
     a = np.dot(x0, s)
     b = np.dot(x0, c)
 
@@ -47,21 +140,13 @@ def tone_corr_score(x, fs, freq_hz):
 
 
 def estimate_active_duration(x, frame_len, hop_len, low_ratio=0.25):
-    """
-    从一段“应为100ms有音”的区域内，估计有效有音时长，以及内部掉音情况。
-    方法：
-    - 分帧计算 RMS
-    - 用相对阈值（相对于中位数）判断低能量帧
-    """
     if len(x) < frame_len:
         return 0.0, False, 0.0
 
     frame_rms = []
-    positions = []
     for st in range(0, len(x) - frame_len + 1, hop_len):
         fr = x[st:st + frame_len]
         frame_rms.append(rms(fr))
-        positions.append(st)
 
     frame_rms = np.array(frame_rms)
     med = np.median(frame_rms) + 1e-12
@@ -70,7 +155,6 @@ def estimate_active_duration(x, frame_len, hop_len, low_ratio=0.25):
     active = frame_rms >= threshold
     active_duration_samples = np.sum(active) * hop_len
 
-    # 找内部最长掉音长度（排除开头结尾）
     longest_drop = 0
     cur = 0
     for i in range(len(active)):
@@ -97,11 +181,6 @@ def local_search_segment(
     step,
     silence_weight=2.0
 ):
-    """
-    在 pred_start 附近做局部搜索，找最像：
-    [100ms目标正弦][100ms静音]
-    的位置。
-    """
     best_score = -1e18
     best = None
 
@@ -119,7 +198,6 @@ def local_search_segment(
         sil_r = rms(sil)
         corr = tone_corr_score(tone, fs, freq_hz)
 
-        # 可按需要调整
         score = corr * tone_r - silence_weight * sil_r
 
         if score > best_score:
@@ -143,13 +221,6 @@ def detect_bluetooth_playback_quality(
     anchor_search_ms=400.0,
     local_alpha=0.7
 ):
-    """
-    主检测函数
-
-    recorded: 录到的音频，一维 numpy 数组
-    freqs_hz: 长度300的频率数组
-    """
-
     if freqs_hz is None:
         freqs_hz = np.linspace(50, 15000, 300)
 
@@ -166,16 +237,12 @@ def detect_bluetooth_playback_quality(
 
     results = []
 
-    # ------------------------------------------------------------
-    # 1) 先找第一段锚点
-    # ------------------------------------------------------------
-    # 在开头较大范围内搜索第一段的起点
-    first_pred = 0
+    # 找第一段锚点
     first_score, first_best = local_search_segment(
         recorded=recorded,
         fs=fs,
         freq_hz=freqs_hz[0],
-        pred_start=first_pred,
+        pred_start=0,
         tone_len=tone_len,
         silence_len=silence_len,
         search_radius=anchor_search,
@@ -184,24 +251,19 @@ def detect_bluetooth_playback_quality(
     )
 
     if first_best is None:
-        raise RuntimeError("无法找到第一段锚点，请检查录音数据或搜索参数。")
+        raise RuntimeError("无法找到第一段锚点，请检查录音数据。")
 
     anchor_start = first_best[0]
     prev_start = anchor_start
     prev_score = first_score
 
-    # ------------------------------------------------------------
-    # 2) for循环300次逐段检测
-    # ------------------------------------------------------------
     for i in range(len(freqs_hz)):
         f = freqs_hz[i]
-
         global_pred = anchor_start + i * seg_len
 
         if i == 0:
             pred = anchor_start
         else:
-            # 如果前一段置信度低，则降低对上一段的依赖
             alpha = local_alpha if prev_score > 0 else 0.2
             local_pred = prev_start + seg_len
             pred = int(round(alpha * local_pred + (1 - alpha) * global_pred))
@@ -219,7 +281,6 @@ def detect_bluetooth_playback_quality(
         )
 
         if best is None:
-            # 保底
             det_start = pred
             tone_r = 0.0
             sil_r = 0.0
@@ -227,71 +288,214 @@ def detect_bluetooth_playback_quality(
         else:
             det_start, tone_r, sil_r, corr = best
 
-        # 取检测到的这段
         tone = recorded[det_start:det_start + tone_len]
         sil = recorded[det_start + tone_len:det_start + tone_len + silence_len]
 
-        # 估计有音时长 + 内部掉音
         active_samples, internal_drop, longest_drop_samples = estimate_active_duration(
             tone, frame_len=frame_len, hop_len=hop_len, low_ratio=0.25
         )
 
         tone_duration_ms_est = active_samples * 1000.0 / fs
         silence_duration_ms_est = seg_ms - tone_duration_ms_est
-
         internal_drop_ms = longest_drop_samples * 1000.0 / fs
 
-        # --------------------------------------------------------
-        # 异常判据（可调）
-        # --------------------------------------------------------
         abnormal_reasons = []
 
-        # 1. 静音段过大：表示后100ms不够安静，可能串段/拖尾/异常
         if sil_r > 0.5 * max(tone_r, 1e-12):
             abnormal_reasons.append("silence_too_loud")
 
-        # 2. 目标频率相关性太低
         if corr < 0.25:
             abnormal_reasons.append("tone_corr_too_low")
 
-        # 3. 有音段明显变短/变长
         if tone_duration_ms_est < 85:
             abnormal_reasons.append("tone_too_short")
         elif tone_duration_ms_est > 115:
             abnormal_reasons.append("tone_too_long")
 
-        # 4. 有音内部掉音（例如10ms静音）
-        if internal_drop and internal_drop_ms >= 8.0:
-            abnormal_reasons.append("internal_drop_in_tone")
-
-        # 5. 起点与全局预测偏差过大
         start_err_ms = abs(det_start - global_pred) * 1000.0 / fs
         if start_err_ms > 50.0:
             abnormal_reasons.append("start_offset_too_large")
 
+        if internal_drop and internal_drop_ms >= 8.0:
+            abnormal_reasons.append("internal_drop_in_tone")
+
         is_abnormal = len(abnormal_reasons) > 0
 
-        res = SegmentResult(
-            index=i,
-            freq_hz=float(f),
-            pred_start_sample=int(pred),
-            detected_start_sample=int(det_start),
-            detected_start_ms=det_start * 1000.0 / fs,
-            best_score=float(best_score),
-            tone_rms=float(tone_r),
-            silence_rms=float(sil_r),
-            tone_corr=float(corr),
-            tone_duration_ms_est=float(tone_duration_ms_est),
-            silence_duration_ms_est=float(silence_duration_ms_est),
-            internal_drop=bool(internal_drop),
-            internal_drop_ms=float(internal_drop_ms),
-            is_abnormal=bool(is_abnormal),
-            abnormal_reasons=abnormal_reasons
+        results.append(
+            SegmentResult(
+                index=i,
+                freq_hz=float(f),
+                pred_start_sample=int(pred),
+                detected_start_sample=int(det_start),
+                detected_start_ms=det_start * 1000.0 / fs,
+                best_score=float(best_score),
+                tone_rms=float(tone_r),
+                silence_rms=float(sil_r),
+                tone_corr=float(corr),
+                tone_duration_ms_est=float(tone_duration_ms_est),
+                silence_duration_ms_est=float(silence_duration_ms_est),
+                internal_drop=bool(internal_drop),
+                internal_drop_ms=float(internal_drop_ms),
+                is_abnormal=bool(is_abnormal),
+                abnormal_reasons=abnormal_reasons
+            )
         )
-        results.append(res)
 
-        # 更新上一段状态
         prev_start = det_start
         prev_score = best_score
 
     return results
+
+
+# =========================================================
+# 汇总与导出
+# =========================================================
+def summarize_results(results):
+    n = len(results)
+    abnormal = [r for r in results if r.is_abnormal]
+
+    summary = {
+        "total_segments": n,
+        "abnormal_segments": len(abnormal),
+        "abnormal_ratio": len(abnormal) / max(n, 1),
+        "avg_tone_corr": float(np.mean([r.tone_corr for r in results])),
+        "avg_tone_duration_ms": float(np.mean([r.tone_duration_ms_est for r in results])),
+        "max_internal_drop_ms": float(np.max([r.internal_drop_ms for r in results])),
+    }
+
+    reason_count = {}
+    for r in abnormal:
+        for k in r.abnormal_reasons:
+            reason_count[k] = reason_count.get(k, 0) + 1
+
+    summary["reason_count"] = reason_count
+    return summary
+
+
+def save_results_to_csv(results, csv_path):
+    with open(csv_path, "w", newline="", encoding="utf-8-sig") as f:
+        writer = csv.writer(f)
+        writer.writerow([
+            "index",
+            "freq_hz",
+            "pred_start_sample",
+            "detected_start_sample",
+            "detected_start_ms",
+            "best_score",
+            "tone_rms",
+            "silence_rms",
+            "tone_corr",
+            "tone_duration_ms_est",
+            "silence_duration_ms_est",
+            "internal_drop",
+            "internal_drop_ms",
+            "is_abnormal",
+            "abnormal_reasons",
+        ])
+
+        for r in results:
+            writer.writerow([
+                r.index,
+                r.freq_hz,
+                r.pred_start_sample,
+                r.detected_start_sample,
+                r.detected_start_ms,
+                r.best_score,
+                r.tone_rms,
+                r.silence_rms,
+                r.tone_corr,
+                r.tone_duration_ms_est,
+                r.silence_duration_ms_est,
+                int(r.internal_drop),
+                r.internal_drop_ms,
+                int(r.is_abnormal),
+                "|".join(r.abnormal_reasons),
+            ])
+
+
+# =========================================================
+# 对外接口
+# =========================================================
+def run_detection_from_wav(
+    wav_path,
+    out_csv_path=None,
+    freqs_hz=None,
+):
+    recorded, fs = read_wav_file(wav_path)
+
+    if fs != 48000:
+        print(f"警告: 当前 wav 采样率是 {fs} Hz，不是 48000 Hz。")
+
+    results = detect_bluetooth_playback_quality(
+        recorded=recorded,
+        fs=fs,
+        freqs_hz=freqs_hz
+    )
+
+    summary = summarize_results(results)
+
+    if out_csv_path is not None:
+        save_results_to_csv(results, out_csv_path)
+
+    return results, summary
+
+
+def run_detection_from_pcm(
+    pcm_path,
+    fs=48000,
+    channels=1,
+    dtype='int16',
+    out_csv_path=None,
+    freqs_hz=None,
+):
+    recorded, fs = read_pcm_file(
+        pcm_path,
+        fs=fs,
+        channels=channels,
+        dtype=dtype
+    )
+
+    results = detect_bluetooth_playback_quality(
+        recorded=recorded,
+        fs=fs,
+        freqs_hz=freqs_hz
+    )
+
+    summary = summarize_results(results)
+
+    if out_csv_path is not None:
+        save_results_to_csv(results, out_csv_path)
+
+    return results, summary
+
+
+# =========================================================
+# 示例 main
+# =========================================================
+if __name__ == "__main__":
+    freqs = np.linspace(50, 15000, 300)
+
+    # -------- wav 示例 --------
+    wav_path = "recorded.wav"
+    if os.path.exists(wav_path):
+        results, summary = run_detection_from_wav(
+            wav_path,
+            out_csv_path="result_wav.csv",
+            freqs_hz=freqs
+        )
+        print("WAV SUMMARY:")
+        print(summary)
+
+    # -------- pcm 示例 --------
+    pcm_path = "recorded.pcm"
+    if os.path.exists(pcm_path):
+        results, summary = run_detection_from_pcm(
+            pcm_path,
+            fs=48000,
+            channels=1,
+            dtype='int16',
+            out_csv_path="result_pcm.csv",
+            freqs_hz=freqs
+        )
+        print("PCM SUMMARY:")
+        print(summary)
